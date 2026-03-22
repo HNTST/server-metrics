@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 type ContainerInfo struct {
@@ -26,8 +29,21 @@ type Metrics struct {
 }
 
 func metricsHandle(w http.ResponseWriter, r *http.Request) {
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("Файл .env не найден, использую дефолтные настройки")
+	}
+	authHeader := r.Header.Get("Authorization")
+	expectedToken := "Bearer " + os.Getenv("API_TOKEN")
+
+	// 2. Сверяем
+	if authHeader == "" || authHeader != expectedToken {
+		log.Println("Попытка несанкционированного доступа!")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 	var dt Metrics
-	err := json.NewDecoder(r.Body).Decode(&dt)
+	err = json.NewDecoder(r.Body).Decode(&dt)
 	if err != nil {
 		fmt.Println("Error to encode json response: ", err)
 		return

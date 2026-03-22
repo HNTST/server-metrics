@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/moby/moby/api/types/container"
-	"github.com/moby/moby/client"
 
+	// Важно: для ListOptions
+	"github.com/moby/moby/client"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
@@ -40,15 +40,12 @@ type Metrics struct {
 
 func getDockerContainersInfo(cli *client.Client) []ContainerInfo {
 	var res []ContainerInfo
-	// В новых версиях API (1.44+) используем ListOptions из подпакета container
-	options := container.ListOptions{All: true}
 
-	// ВАЖНО: В Go 1.25+ и новом SDK возвращается структура ContainerListResult
-	cont, err := cli.ContainerList(context.Background(), options)
+	cont, err := cli.ContainerList(context.Background(), client.ContainerListOptions{All: true})
 	if err != nil {
 		log.Println("Ошибка получения списка контенеров:", err)
 	}
-	for _, c := range cont.Containers {
+	for _, c := range cont.Items {
 		name := "unknown"
 		if len(c.Names) > 0 {
 			name = strings.TrimPrefix(c.Names[0], "/")
@@ -57,7 +54,7 @@ func getDockerContainersInfo(cli *client.Client) []ContainerInfo {
 		res = append(res, ContainerInfo{
 			ID:    c.ID[:12],
 			Name:  name,
-			State: c.State,
+			State: string(c.State),
 			Image: c.Image,
 		})
 	}
@@ -104,12 +101,18 @@ func main() {
 	if err != nil {
 		log.Println("Не удалось запустить Docker SDK:", err)
 	}
+	apiToken := os.Getenv("API_TOKEN")
 
 	log.Println("-------------------------")
 	log.Println("SERVER_URL = ", serverURL)
 	log.Println("HOST_NAME = ", hostName)
 	log.Println("Интервал в секундах: ", interval)
 	log.Println("Сканирование докер: ", scanDockerStr)
+	if apiToken == "" {
+		log.Println("API_TOKEN не найден")
+	} else {
+		log.Println("API_TOKEN найден")
+	}
 	log.Println("-------------------------")
 	log.Println("Запуск")
 
@@ -135,11 +138,30 @@ func main() {
 			SentAt:     time.Now(),
 		}
 		js, _ := json.Marshal(post)
-		resp, err := http.Post(serverURL, "application/json", bytes.NewBuffer(js))
+		req, err := http.NewRequest("POST", serverURL, bytes.NewBuffer(js))
 		if err != nil {
-			log.Println("Ошибка отправки:", err)
+			log.Println("Ошибка создания запроса:", err)
 			continue
 		}
-		resp.Body.Close()
+
+		req.Header.Set("Authorization", "Bearer "+apiToken)
+		req.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{Timeout: 5 * time.Second} // Добавь таймаут, чтобы агент не завис
+		resp, err := client.Do(req)
+
+		// 1. Сначала проверяем ошибку сети/подключения
+		if err != nil {
+			log.Println("Ошибка отправки запроса на сервер:", err)
+			continue // Идем на следующий цикл тикера
+		}
+
+		// 2. Только если ошибки нет, закрываем тело в конце
+		// Используем defer внутри функции или просто Close() после обработки
+		if resp != nil {
+			log.Printf("Ответ сервера: %d", resp.StatusCode)
+			resp.Body.Close()
+		}
+
 	}
 }
