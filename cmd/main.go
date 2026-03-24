@@ -6,30 +6,14 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
+
+	md "models/models.go"
 
 	"github.com/joho/godotenv"
 )
 
-type ContainerInfo struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	State string `json:"state"` // running, exited, etc.
-	Image string `json:"image"`
-}
-type Metrics struct {
-	Host       string          `json:"host"`
-	Cpu        float64         `json:"cpu"`
-	MemTotal   uint64          `json:"mem_total"`
-	MemUsage   uint64          `json:"mem_usage"`
-	SpaceTotal uint64          `json:"space_total"`
-	SpaceUsage uint64          `json:"space_usage"`
-	Containers []ContainerInfo `json:"containers,omitempty"`
-	SentAt     time.Time       `json:"sent_at"`
-}
-
 func metricsHandle(w http.ResponseWriter, r *http.Request) {
-	err := godotenv.Load()
+	err := godotenv.Load("cmd/.env")
 	if err != nil {
 		log.Println("Файл .env не найден, использую дефолтные настройки")
 	}
@@ -42,7 +26,7 @@ func metricsHandle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	var dt Metrics
+	var dt md.Metrics
 	err = json.NewDecoder(r.Body).Decode(&dt)
 	if err != nil {
 		fmt.Println("Error to encode json response: ", err)
