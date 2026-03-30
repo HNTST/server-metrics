@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"os"
 
-	md "models/models.go"
+	md "agent/models"
 
 	"github.com/joho/godotenv"
 )

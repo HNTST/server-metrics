@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	md "agent/models"
 
 	// Важно: для ListOptions
-	md "models/models.go"
 
 	"github.com/moby/moby/client"
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -45,55 +45,66 @@ func getDockerContainersInfo(cli *client.Client) []md.ContainerInfo {
 	}
 	return res
 }
-
-func main() {
-	var (
-		serverURL, hostName string
-		interval            int
-	)
-
-	log.Println("Инициализация агента")
-
-	log.Println("Загрузка .env")
-	err := godotenv.Load("agent/.env")
+func envLoad(path string) map[string]string {
+	result := make(map[string]string)
+	err := godotenv.Load(path)
 	if err != nil {
 		log.Println("Файл .env не найден, использую дефолтные настройки")
 	}
-
 	log.Println("Чтение SERVER_URL")
-	serverURL = os.Getenv("SERVER_URL")
+	serverURL := os.Getenv("SERVER_URL")
 	if serverURL == "" {
 		serverURL = "http://localhost:8080/metrics"
 		log.Println("URL не найден, взят: ", serverURL)
 	}
+	result["SERVER_URL"] = serverURL
 
 	log.Println("Чтение HOST_NAME")
-	hostName = os.Getenv("HOST_NAME")
+	hostName := os.Getenv("HOST_NAME")
 	if hostName == "" {
 		h, _ := host.Info()
 		hostName = h.Hostname
 		log.Println("HOST_NAME не найден, взят: ", hostName)
 	}
+	result["HOST_NAME"] = hostName
 
-	intervalStr := os.Getenv("INTERVAL")
-	interval, err = strconv.Atoi(intervalStr)
-	if err != nil {
-		interval = 10
+	interval := os.Getenv("INTERVAL")
+	if interval == "" {
+		interval = "10"
+		log.Println("INTERVAL не найден, взят: ", interval)
 	}
+	result["INTERVAL"] = interval
 
 	scanDockerStr := os.Getenv("SCAN_DOCKER")
-	cl, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		log.Println("Не удалось запустить Docker SDK:", err)
-	}
+	result["SCAN_DOCKER"] = scanDockerStr
+
 	apiToken := os.Getenv("API_TOKEN")
+	result["API_TOKEN"] = apiToken
+
+	return result
+}
+
+func main() {
+
+	log.Println("Инициализация агента")
+
+	log.Println("Загрузка .env")
+	env := envLoad("agent/.env")
+
+	server_url := env["SERVER_URL"]
+	host_name := env["HOST_NAME"]
+	intervalStr := env["INTERVAL"]
+	interval, _ := strconv.Atoi(intervalStr)
+	scan_docker := env["SCAN_DOCKER"]
+	api_token := env["API_TOKEN"]
+	// interval конвертировать в int
 
 	log.Println("-------------------------")
-	log.Println("SERVER_URL = ", serverURL)
-	log.Println("HOST_NAME = ", hostName)
+	log.Println("SERVER_URL = ",server_url)
+	log.Println("HOST_NAME = ", host_name)
 	log.Println("Интервал в секундах: ", interval)
-	log.Println("Сканирование докер: ", scanDockerStr)
-	if apiToken == "" {
+	log.Println("Сканирование докер: ", scan_docker)
+	if api_token == "" {
 		log.Println("API_TOKEN не найден")
 	} else {
 		log.Println("API_TOKEN найден")
@@ -101,11 +112,16 @@ func main() {
 	log.Println("-------------------------")
 	log.Println("Запуск")
 
+	cl, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		log.Println("Не удалось запустить Docker SDK:", err)
+	}
+
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
 		var conts []md.ContainerInfo
-		if scanDockerStr == "true" {
+		if scan_docker == "true" {
 			conts = getDockerContainersInfo(cl)
 		}
 
@@ -113,7 +129,7 @@ func main() {
 		mm, _ := mem.VirtualMemory()
 		dk, _ := disk.Usage("/")
 		post := md.Metrics{
-			Host:       hostName,
+			Host:      host_name,
 			Cpu:        percentages[0],
 			MemTotal:   mm.Total,
 			MemUsage:   mm.Used,
@@ -123,26 +139,23 @@ func main() {
 			SentAt:     time.Now(),
 		}
 		js, _ := json.Marshal(post)
-		req, err := http.NewRequest("POST", serverURL, bytes.NewBuffer(js))
+		req, err := http.NewRequest("POST", server_url, bytes.NewBuffer(js))
 		if err != nil {
 			log.Println("Ошибка создания запроса:", err)
 			continue
 		}
 
-		req.Header.Set("Authorization", "Bearer "+apiToken)
+		req.Header.Set("Authorization", "Bearer "+api_token)
 		req.Header.Set("Content-Type", "application/json")
 
-		client := &http.Client{Timeout: 5 * time.Second} // Добавь таймаут, чтобы агент не завис
+		client := &http.Client{Timeout: 5 * time.Second}
 		resp, err := client.Do(req)
 
-		// 1. Сначала проверяем ошибку сети/подключения
 		if err != nil {
 			log.Println("Ошибка отправки запроса на сервер:", err)
-			continue // Идем на следующий цикл тикера
+			continue
 		}
 
-		// 2. Только если ошибки нет, закрываем тело в конце
-		// Используем defer внутри функции или просто Close() после обработки
 		if resp != nil {
 			log.Printf("Ответ сервера: %d", resp.StatusCode)
 			resp.Body.Close()
