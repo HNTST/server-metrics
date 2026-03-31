@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/joho/godotenv v1.5.1
+	github.com/lib/pq v1.12.1
 	github.com/moby/moby/client v0.3.0
 	github.com/shirou/gopsutil/v3 v3.24.5
 )
@@ -19,7 +20,6 @@ require (
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
-	github.com/lib/pq v1.12.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/moby/api v1.54.0 // indirect
