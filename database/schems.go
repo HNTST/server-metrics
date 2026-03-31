@@ -2,7 +2,7 @@ package database
 
 // 1. Таблица агентов
 var Agents_table = `
-CREATE TABLE agents (
+CREATE TABLE if not exists agents (
     id SERIAL PRIMARY KEY,
     agent_name VARCHAR(255) UNIQUE NOT NULL,
     agent_ip VARCHAR(50),
@@ -12,7 +12,7 @@ CREATE TABLE agents (
 
 // 2. Таблица логов (связана с агентом)
 var Logs_table = `
-CREATE TABLE logs (
+CREATE TABLE if not exists logs (
     id SERIAL PRIMARY KEY,
     agent_id INTEGER REFERENCES agents(id) ON DELETE CASCADE,
     cpu_usage DOUBLE PRECISION,
@@ -27,7 +27,7 @@ CREATE TABLE logs (
 // 3. Таблица контейнеров (связана с конкретным логом)
 // Один лог содержит много контейнеров (One-to-Many)
 var Conts_table = `
-CREATE TABLE containers (
+CREATE TABLE if not exists containers (
     id SERIAL PRIMARY KEY,
     log_id INTEGER REFERENCES logs(id) ON DELETE CASCADE,
     container_id VARCHAR(255),

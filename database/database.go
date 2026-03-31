@@ -1,8 +1,10 @@
 package database
 
 import (
+	md "agent/models"
 	"database/sql"
 	"fmt"
+
 	"log"
 	"os"
 
@@ -12,6 +14,7 @@ import (
 
 type DBRepo interface {
 	InitDB() error
+	SaveLog(metrics md.Metrics) error
 }
 
 type Service struct {
@@ -120,4 +123,52 @@ func (sv *Service) InitDB() error {
 
 	fmt.Println("Успешное подключение к базе данных!")
 	return nil
+}
+
+func (sv *Service) SaveLog(metrics md.Metrics) error {
+	var agent_id int64
+	var err error
+
+	if !sv.checkAgent(metrics.Host) {
+		new_agent := md.Agent{
+			AgentName: metrics.Host,
+			AgentIP:   "0.0.0.0",
+		}
+		agent_id, err = sv.regNewAgent(new_agent)
+		if err != nil {
+			return err
+		}
+	} else {
+		agent_id, err = sv.getAgentId(metrics.Host)
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = sv.db.Exec("insert into logs (agent_id, cpu_usage, mem_total, mem_usage, space_total, space_usage, sent_at) values($1, $2, $3, $4, $5, $6, $7)",
+		agent_id, metrics.Cpu, metrics.MemTotal, metrics.MemUsage, metrics.SpaceTotal, metrics.SpaceUsage, metrics.SentAt)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (sv *Service) checkAgent(agent_name string) bool {
+	var agent md.Agent
+	row := sv.db.QueryRow("select * from agents where agent_name = $1", agent_name)
+	if err := row.Scan(&agent.ID, &agent.AgentName, &agent.AgentIP, &agent.LastSeen); err != nil {
+		return false
+	}
+	return true
+}
+func (sv *Service) regNewAgent(agent md.Agent) (int64, error) {
+	var id int64
+	err := sv.db.QueryRow("insert into agents (agent_name, agent_ip, last_seen) values($1,$2, NOW()) RETURNING id",
+		agent.AgentName, agent.AgentIP).Scan(&id)
+	return id, err
+}
+func (sv *Service) getAgentId(agent_name string) (int64, error) {
+	var id int64
+	err := sv.db.QueryRow("select id from agents where agent_name = $1", agent_name).Scan(&id)
+	return id, err
 }
