@@ -27,7 +27,9 @@ import (
 func getDockerContainersInfo(cli *client.Client) []md.ContainerInfo {
 	var res []md.ContainerInfo
 
-	cont, err := cli.ContainerList(context.Background(), client.ContainerListOptions{All: true})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cont, err := cli.ContainerList(ctx, client.ContainerListOptions{All: true})
 	if err != nil {
 		log.Println("Ошибка получения списка контенеров:", err)
 	}

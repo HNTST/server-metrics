@@ -89,6 +89,7 @@ func (sv *Service) SaveLog(metrics md.Metrics) error {
 			return err
 		}
 	}
+	_, _ = sv.db.Exec("UPDATE agents SET last_seen = NOW() WHERE id = $1", agent_id)
 	// ПОЛУЧИТЬ ID ВСТАВЛЕННОГО ЛОГА
 	err = sv.db.QueryRow("insert into logs (agent_id, cpu_usage, mem_total, mem_usage, space_total, space_usage, sent_at) values($1, $2, $3, $4, $5, $6, $7) RETURNING id",
 		agent_id, metrics.Cpu, metrics.MemTotal, metrics.MemUsage, metrics.SpaceTotal, metrics.SpaceUsage, metrics.SentAt).Scan(&log_id)
