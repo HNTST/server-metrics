@@ -8,17 +8,11 @@ import (
 	"log"
 	"net/http"
 	"os"
-
-	"github.com/joho/godotenv"
 )
 
 func SaveLogs(repo db.DBRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		err := godotenv.Load("cmd/.env")
-		if err != nil {
-			log.Println("Файл .env не найден")
-			return
-		}
+		var err error
 
 		authHeader := r.Header.Get("Authorization")
 		expectedToken := "Bearer " + os.Getenv("API_TOKEN")

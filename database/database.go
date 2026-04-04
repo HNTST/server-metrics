@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq" // To register the driver.
 )
 
@@ -21,80 +20,24 @@ type Service struct {
 	db *sql.DB
 }
 
-func envLoad(path string) map[string]string {
-	result := make(map[string]string)
-	err := godotenv.Load(path)
-	if err != nil {
-		log.Println("Файл .env не найден, использую дефолтные настройки")
+// getEnv — берет значение из ОС или возвращает default
+func getEnv(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
 	}
-
-	log.Println("Чтение DB_HOST")
-	db_host := os.Getenv("DB_HOST")
-	if db_host == "" {
-		db_host = "localhost"
-		log.Println("DB_HOST не найден, взят: ", db_host)
-	}
-	result["DB_HOST"] = db_host
-
-	// Чтение DB_PORT
-	log.Println("Чтение DB_PORT")
-	db_port := os.Getenv("DB_PORT")
-	if db_port == "" {
-		db_port = "5432"
-		log.Println("DB_PORT не найден, взят: ", db_port)
-	}
-	result["DB_PORT"] = db_port
-
-	// Чтение DB_USER
-	log.Println("Чтение DB_USER")
-	db_user := os.Getenv("DB_USER")
-	if db_user == "" {
-		db_user = "diplom"
-		log.Println("DB_USER не найден, взят: ", db_user)
-	}
-	result["DB_USER"] = db_user
-
-	// Чтение DB_PASSWORD
-	log.Println("Чтение DB_PASSWORD")
-	db_password := os.Getenv("DB_PASSWORD")
-	if db_password == "" {
-		db_password = "password"
-		log.Println("DB_PASSWORD не найден, взят: ", db_password)
-	}
-	result["DB_PASSWORD"] = db_password
-
-	// Чтение DB_NAME
-	log.Println("Чтение DB_NAME")
-	db_name := os.Getenv("DB_NAME")
-	if db_name == "" {
-		db_name = "diplom"
-		log.Println("DB_NAME не найден, взят: ", db_name)
-	}
-	result["DB_NAME"] = db_name
-
-	// Чтение SSLMODE
-	log.Println("Чтение SSLMODE")
-	ssl_mode := os.Getenv("SSLMODE")
-	if ssl_mode == "" {
-		ssl_mode = "disable"
-		log.Println("SSLMODE не найден, взят: ", ssl_mode)
-	}
-	result["SSLMODE"] = ssl_mode
-
-	return result
+	log.Printf("%s не найден, использую дефолт: %s", key, fallback)
+	return fallback
 }
 
 func (sv *Service) InitDB() error {
-	dsn := make(map[string]string)
-	log.Println("Загрузка .env")
-	dsn = envLoad("cmd/.env")
+
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		dsn["DB_HOST"],
-		dsn["DB_PORT"],
-		dsn["DB_USER"],
-		dsn["DB_PASSWORD"],
-		dsn["DB_NAME"],
-		dsn["SSLMODE"],
+		getEnv("DB_HOST", "localhost"),
+		getEnv("DB_PORT", "5432"),
+		getEnv("DB_USER", "diplom"),
+		getEnv("DB_PASSWORD", "password"),
+		getEnv("DB_NAME", "diplom"),
+		getEnv("SSLMODE", "disable"),
 	)
 
 	// 2. Открываем соединение
@@ -126,8 +69,10 @@ func (sv *Service) InitDB() error {
 }
 
 func (sv *Service) SaveLog(metrics md.Metrics) error {
-	var agent_id int64
-	var err error
+	var (
+		agent_id, log_id int64
+		err              error
+	)
 
 	if !sv.checkAgent(metrics.Host) {
 		new_agent := md.Agent{
@@ -144,11 +89,36 @@ func (sv *Service) SaveLog(metrics md.Metrics) error {
 			return err
 		}
 	}
-
-	_, err = sv.db.Exec("insert into logs (agent_id, cpu_usage, mem_total, mem_usage, space_total, space_usage, sent_at) values($1, $2, $3, $4, $5, $6, $7)",
-		agent_id, metrics.Cpu, metrics.MemTotal, metrics.MemUsage, metrics.SpaceTotal, metrics.SpaceUsage, metrics.SentAt)
+	// ПОЛУЧИТЬ ID ВСТАВЛЕННОГО ЛОГА
+	err = sv.db.QueryRow("insert into logs (agent_id, cpu_usage, mem_total, mem_usage, space_total, space_usage, sent_at) values($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+		agent_id, metrics.Cpu, metrics.MemTotal, metrics.MemUsage, metrics.SpaceTotal, metrics.SpaceUsage, metrics.SentAt).Scan(&log_id)
 	if err != nil {
 		return err
+	}
+	err = sv.saveDockerLog(log_id, metrics)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (sv *Service) saveDockerLog(log_id int64, metrics md.Metrics) error {
+	var (
+		err error
+	)
+	if len(metrics.Containers) == 0 {
+		return nil
+	}
+	for _, c := range metrics.Containers {
+		_, err = sv.db.Exec(
+			"insert into containers (log_id, container_id, name, image, state) values($1, $2, $3, $4, $5)",
+			log_id, c.ContainerID, c.Name, c.Image, c.State,
+		)
+		if err != nil {
+			log.Printf("Ошибка сохранения контейнера %s: %v", c.Name, err)
+			continue
+		}
 	}
 	return nil
 }

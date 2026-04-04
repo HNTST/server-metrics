@@ -2,16 +2,19 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	md "agent/models"
 
 	"github.com/joho/godotenv"
+	"github.com/moby/moby/client"
 
 	// Важно: для ListOptions
 
@@ -21,28 +24,28 @@ import (
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
-// func getDockerContainersInfo(cli *client.Client) []md.ContainerInfo {
-// 	var res []md.ContainerInfo
+func getDockerContainersInfo(cli *client.Client) []md.ContainerInfo {
+	var res []md.ContainerInfo
 
-// 	cont, err := cli.ContainerList(context.Background(), client.ContainerListOptions{All: true})
-// 	if err != nil {
-// 		log.Println("Ошибка получения списка контенеров:", err)
-// 	}
-// 	for _, c := range cont.Items {
-// 		name := "unknown"
-// 		if len(c.Names) > 0 {
-// 			name = strings.TrimPrefix(c.Names[0], "/")
-// 		}
+	cont, err := cli.ContainerList(context.Background(), client.ContainerListOptions{All: true})
+	if err != nil {
+		log.Println("Ошибка получения списка контенеров:", err)
+	}
+	for _, c := range cont.Items {
+		name := "unknown"
+		if len(c.Names) > 0 {
+			name = strings.TrimPrefix(c.Names[0], "/")
+		}
 
-//			res = append(res, md.ContainerInfo{
-//				ID:    c.ID[:12],
-//				Name:  name,
-//				State: string(c.State),
-//				Image: c.Image,
-//			})
-//		}
-//		return res
-//	}
+		res = append(res, md.ContainerInfo{
+			ContainerID: c.ID[:12],
+			Name:        name,
+			State:       string(c.State),
+			Image:       c.Image,
+		})
+	}
+	return res
+}
 func envLoad(path string) map[string]string {
 	result := make(map[string]string)
 	err := godotenv.Load(path)
@@ -95,7 +98,6 @@ func main() {
 	interval, _ := strconv.Atoi(intervalStr)
 	scan_docker := env["SCAN_DOCKER"]
 	api_token := env["API_TOKEN"]
-	// interval конвертировать в int
 
 	log.Println("-------------------------")
 	log.Println("SERVER_URL = ", server_url)
@@ -110,18 +112,18 @@ func main() {
 	log.Println("-------------------------")
 	log.Println("Запуск")
 
-	// cl, err := client.NewClientWithOpts(client.FromEnv)
-	// if err != nil {
-	// 	log.Println("Не удалось запустить Docker SDK:", err)
-	// }
+	cl, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		log.Println("Не удалось запустить Docker SDK:", err)
+	}
 
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
 		var conts []md.ContainerInfo
-		// if scan_docker == "true" {
-		// 	conts = getDockerContainersInfo(cl)
-		// }
+		if scan_docker == "true" {
+			conts = getDockerContainersInfo(cl)
+		}
 
 		percentages, _ := cpu.Percent(time.Second, false)
 		mm, _ := mem.VirtualMemory()
