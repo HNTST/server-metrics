@@ -36,3 +36,15 @@ CREATE TABLE if not exists containers (
     state VARCHAR(50)
 );
 `
+var Daily_metrics = `
+CREATE TABLE if not exists daily_metrics (
+	id SERIAL PRIMARY KEY,
+	agent_id integer REFERENCES agents(id),
+	avg_cpu DOUBLE PRECISION,
+	max_cpu DOUBLE PRECISION,
+	avg_mem BIGINT,
+	max_mem BIGINT,
+	avg_disk BIGINT,
+	report_date DATE,
+	UNIQUE (agent_id, report_date)
+);`

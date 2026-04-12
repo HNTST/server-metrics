@@ -46,3 +46,89 @@ func SaveLogs(repo db.DBRepo) http.HandlerFunc {
 		}
 	}
 }
+
+func GetLastLog(repo db.DBRepo) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var err error
+
+		authHeader := r.Header.Get("Authorization")
+		expectedToken := "Bearer " + os.Getenv("API_TOKEN")
+
+		// 2. Сверяем
+		if authHeader == "" || authHeader != expectedToken {
+			log.Println("Попытка несанкционированного доступа!")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		metrics, err := repo.GetLastLog()
+
+		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			log.Printf("Ошибка получения лога: %v", err)
+			return
+		}
+
+		err = json.NewEncoder(w).Encode(metrics)
+		if err != nil {
+			fmt.Println("Error to encode json response: ", err)
+			return
+		}
+	}
+}
+
+func GetAgents(repo db.DBRepo) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var err error
+
+		authHeader := r.Header.Get("Authorization")
+		expectedToken := "Bearer " + os.Getenv("API_TOKEN")
+
+		// 2. Сверяем
+		if authHeader == "" || authHeader != expectedToken {
+			log.Println("Попытка несанкционированного доступа!")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		agents, err := repo.GetAgents()
+
+		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			log.Printf("Ошибка получения лога: %v", err)
+			return
+		}
+
+		err = json.NewEncoder(w).Encode(agents)
+		if err != nil {
+			fmt.Println("Error to encode json response: ", err)
+			return
+		}
+	}
+}
+
+func GetDailyMetric(repo db.DBRepo) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		expectedToken := "Bearer " + os.Getenv("API_TOKEN")
+
+		if authHeader == "" || authHeader != expectedToken {
+			log.Println("Попытка несанкционированного доступа!")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		metrics, err := repo.GetDailyMetrics()
+
+		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			log.Printf("Ошибка получения лога: %v", err)
+			return
+		}
+
+		err = json.NewEncoder(w).Encode(metrics)
+		if err != nil {
+			fmt.Println("Error to encode json response: ", err)
+			return
+		}
+
+	}
+}

@@ -13,8 +13,8 @@ type ContainerInfo struct {
 }
 
 type Metrics struct {
-	ID      int `json:"-"`
-	AgentID int `json:"-"`
+	ID      int `json:"id"`
+	AgentID int `json:"agent_id"`
 
 	Host       string  `json:"host"`
 	Cpu        float64 `json:"cpu"`
@@ -33,4 +33,15 @@ type Agent struct {
 	AgentName string    `json:"agent_name"`
 	AgentIP   string    `json:"agent_ip"`
 	LastSeen  time.Time `json:"last_seen"`
+}
+
+type DailyMetrics struct {
+	ID         int       `json:"id"`
+	AgentID    int       `json:"agent_id"`
+	AvgCPU     float64   `json:"avg_cpu"`
+	MaxCPU     float64   `json:"max_cpu"`
+	AvgMEM     uint64    `json:"avg_mem"`
+	MaxMEM     uint64    `json:"max_mem"`
+	AvgSpace   uint64    `json:"avg_space"`
+	ReportDate time.Time `json:"report_date"`
 }
