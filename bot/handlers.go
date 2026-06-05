@@ -8,44 +8,6 @@ import (
 	"github.com/mymmrac/telego"
 )
 
-func Handler_Hello(bot *telego.Bot, chatID telego.ChatID) {
-	bot.SendMessage(context.Background(), &telego.SendMessageParams{
-		ChatID:      chatID,
-		Text:        "Добро пожаловать! Я бот для просмотра метрик вашего сервера. Выберите нужный пункт в меню",
-		ReplyMarkup: GetMainMenu(),
-	})
-}
-
-func Handler_GetMetrics(bot *telego.Bot, id telego.ChatID, severURL string) {
-
-	bot.SendMessage(context.Background(), &telego.SendMessageParams{
-		ChatID: id,
-		Text:   "⏳ Запрашиваю данные с сервера...",
-	})
-
-	metrics, err := GetMetrics(severURL)
-	if err != nil {
-		bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID: id,
-			Text:   "❌ Ошибка при получении метрик: " + err.Error(),
-		})
-		return
-	}
-
-	var finalText string
-	finalText += "✅ Метрики получены:\n\n"
-	for _, val := range metrics {
-		text := formatLogsMessage(val)
-		finalText += text + "\n\n" + "────────────────────" + "\n\n"
-	}
-
-	bot.SendMessage(context.Background(), &telego.SendMessageParams{
-		ChatID:      id,
-		Text:        finalText,
-		ReplyMarkup: GetMainMenu(),
-	})
-}
-
 func formatLogsMessage(m md.Metrics) string {
 	var conts string
 	for _, cont := range m.Containers {
@@ -75,6 +37,42 @@ func formatLogsMessage(m md.Metrics) string {
 	return finalText
 }
 
+func Handler_Hello(bot *telego.Bot, chatID telego.ChatID) {
+	bot.SendMessage(context.Background(), &telego.SendMessageParams{
+		ChatID:      chatID,
+		Text:        "Добро пожаловать! Я бот для просмотра метрик вашего сервера. Выберите нужный пункт в меню",
+		ReplyMarkup: GetMainMenu(),
+	})
+}
+func Handler_GetMetrics(bot *telego.Bot, id telego.ChatID, severURL string) {
+
+	bot.SendMessage(context.Background(), &telego.SendMessageParams{
+		ChatID: id,
+		Text:   "⏳ Запрашиваю данные с сервера...",
+	})
+
+	metrics, err := GetMetrics(severURL)
+	if err != nil {
+		bot.SendMessage(context.Background(), &telego.SendMessageParams{
+			ChatID: id,
+			Text:   "❌ Ошибка при получении метрик: " + err.Error(),
+		})
+		return
+	}
+
+	var finalText string
+	finalText += "✅ Метрики получены:\n\n"
+	for _, val := range metrics {
+		text := formatLogsMessage(val)
+		finalText += text + "\n\n" + "────────────────────" + "\n\n"
+	}
+
+	bot.SendMessage(context.Background(), &telego.SendMessageParams{
+		ChatID:      id,
+		Text:        finalText,
+		ReplyMarkup: GetMainMenu(),
+	})
+}
 func Handler_GetAgentList(bot *telego.Bot, id telego.ChatID, severURL string) {
 	bot.SendMessage(context.Background(), &telego.SendMessageParams{
 		ChatID: id,

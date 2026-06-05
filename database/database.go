@@ -35,7 +35,6 @@ func getEnv(key, fallback string) string {
 }
 
 func (sv *Service) InitDB() error {
-
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		getEnv("DB_HOST", "192.168.31.234"),
 		getEnv("DB_PORT", "5432"),
@@ -44,21 +43,15 @@ func (sv *Service) InitDB() error {
 		getEnv("DB_NAME", "diplom"),
 		getEnv("SSLMODE", "disable"),
 	)
-
-	// 2. Открываем соединение
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return err
 	}
 	sv.db = db
-
-	// 3. Проверяем соединение (sql.Open не создает само подключение сразу)
 	err = db.Ping()
 	if err != nil {
 		return err
 	}
-
-	// создание таблиц
 	if _, err = db.Exec(Agents_table); err != nil {
 		return err
 	}
@@ -80,7 +73,6 @@ func (sv *Service) SaveLog(metrics md.Metrics) error {
 		agent_id, log_id int64
 		err              error
 	)
-
 	if !sv.checkAgent(metrics.Host) {
 		new_agent := md.Agent{
 			AgentName: metrics.Host,
@@ -96,16 +88,15 @@ func (sv *Service) SaveLog(metrics md.Metrics) error {
 			return err
 		}
 	}
-
 	tx, err := sv.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-
 	_, _ = tx.Exec("UPDATE agents SET last_seen = NOW() WHERE id = $1", agent_id)
 	// ПОЛУЧИТЬ ID ВСТАВЛЕННОГО ЛОГА
-	err = tx.QueryRow("insert into logs (agent_id, cpu_usage, mem_total, mem_usage, space_total, space_usage, sent_at) values($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+	err = tx.QueryRow(`insert into logs (agent_id, cpu_usage, mem_total, mem_usage, space_total, space_usage, sent_at)
+		values($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
 		agent_id, metrics.Cpu, metrics.MemTotal, metrics.MemUsage, metrics.SpaceTotal, metrics.SpaceUsage, metrics.SentAt).Scan(&log_id)
 	if err != nil {
 		return err
@@ -114,7 +105,6 @@ func (sv *Service) SaveLog(metrics md.Metrics) error {
 	if err != nil {
 		return err
 	}
-
 	return tx.Commit()
 }
 
